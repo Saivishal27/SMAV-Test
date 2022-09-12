@@ -5,17 +5,15 @@ from model_wrapper import Model
 import pickle
 import pandas as pd
 import os
-import joblib
-import lzma
 from ctypes import c_char_p
-import traceback
-
+manager = multiprocessing.Manager()
 
 
 app = Flask(__name__)
 
 # model = None 
 
+Message = manager.Value(c_char_p, "Model Training Not Done Yet")
 
 
 def sub_process(model,data,model_filename):
@@ -29,7 +27,7 @@ def sub_process(model,data,model_filename):
 
 @app.route('/gateway', methods=['POST','GET'])
 def gateway():
-    model_filename = 'model.xz'
+    model_filename = 'model.pkl'
     input = request.json
     request_type = input['request_type']
     if input['data_file_name'] != None:
@@ -65,19 +63,12 @@ def gateway():
         try:
             if input['model_type'] == 'ML':
                 if os.path.exists(model_filename):
-                    # model = pickle.load(open(model_filename, 'rb'))
-                    print('2\n')
-                    model=joblib.load(lzma.open(model_filename, 'rb'))
-                    print('3\n')
-                    print('Data\n',data.head(),'Data Shape\n',data.shape)
-                    print('Input\n',input)
+                    model = pickle.load(open(model_filename, 'rb'))
                     predictions = model.predict(data,input['target_label'])
-                    print('Preds:\n',predictions)
                     response_data = {'predictions':predictions.to_json(),
                                         'train_report': model._train_report,
                                         'test_report': model._test_report,
                                         'hyper_parm_list': model._hyper_parm_list} 
-                    # del model
                 else:
                     return jsonify({'data':None, 'prediction_successful':False,'message': Message.value,
                             'status': 404}
@@ -115,12 +106,9 @@ def gateway():
                             'status': 200}
                             )
         except Exception as e:
-            print('Exception:\n'+traceback.format_exc())
             return jsonify({'data':'', 'computed_scores':False,
                     'message': "Exception occured: "+str(e),
                     'status': 200})
 
 if __name__ == '__main__':
-    manager = multiprocessing.Manager()
-    Message = manager.Value(c_char_p, "Model Training Not Done Yet")
-    app.run(host='0.0.0.0', port=40011 , debug=True)
+    app.run(host='0.0.0.0', port=8080 , debug=True)

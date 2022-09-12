@@ -44,12 +44,12 @@ class Model:
         self._left_failure = -4
 
         self._rolling_window_size = 120
-        self._asset = 'DG1'
+        self._asset = 'DG2'
 
-        self._model_cols = ['POWER_MANAGEMENT_SYSTEM/DG1/DG1LUBOILPRESSURE',
-                            'POWER_MANAGEMENT_SYSTEM/DG1/DG1ENGINERPM',
-                            'POWER_MANAGEMENT_SYSTEM/DG1/DG1COOLANTTEMPERATURE',
-                            'POWER_MANAGEMENT_SYSTEM/MSB/DG1_ACTIVE_POWER']
+        self._model_cols = ['POWER_MANAGEMENT_SYSTEM/DG2/DG2LUBOILPRESSURE',
+                            'POWER_MANAGEMENT_SYSTEM/DG2/DG2ENGINERPM',
+                            'POWER_MANAGEMENT_SYSTEM/DG2/DG2COOLANTTEMPERATURE',
+                            'POWER_MANAGEMENT_SYSTEM/MSB/DG2_ACTIVE_POWER']
         # self.__split_percent        = split_percent
         # self._x_train_start_time    = train_start
         # self._x_train_end_time      = train_end
@@ -82,11 +82,7 @@ class Model:
 
     def pre_process(self,df):
         df = df[df['POWER_MANAGEMENT_SYSTEM/'+self._asset+'/'+self._asset+'ENGINERPM']>=1400]
-        print('Data 11\n',df.head())
-        print('Data 11 Shape\n',df.shape)
         df = df.dropna()
-        print('Data 12\n',df.head())
-        print('Data 12 Shape\n',df.shape)
         if len(df)!=0:
             z = np.abs(stats.zscore(df[self._use_cols]))
             df = df[(z < 3).all(axis=1)]
@@ -110,50 +106,34 @@ class Model:
         return (True, 'Model Trained')
 
     def check_condition(self,x):
-        # print('Data 451:\n')
         onehot = pd.Series([0,0],index = ['DERIVED_'+self._asset+'_LUBRICATION_SYSTEM_FAILURE_WARNING','DERIVED_'+self._asset+'_LUBRICATION_SYSTEM_FAILURE'])
-        # print('Data 452:\n')
         if (x>=self._right_inspect and x<self._right_failure) or (x<=self._left_inspect and x>self._left_failure):
-            # print('Data 453:\n')
             onehot.loc['DERIVED_'+self._asset+'_LUBRICATION_SYSTEM_FAILURE_WARNING'] = 1
-            # print('Data 454:\n')
         elif (x>=self._right_failure) or (x<=self._left_failure):
-            # print('Data 455:\n')
             onehot.loc['DERIVED_'+self._asset+'_LUBRICATION_SYSTEM_FAILURE'] = 1
-            # print('Data 456:\n')
-        # print('Data 457:\n')
         return onehot
 
     def post_processing(self,data,target_label):
-        print('Data 41:\n')
+
         data[['DERIVED_POWER_MANAGEMENT_SYSTEM/'+self._asset+'/'+self._asset+'LUBOILTEMPERATURE']] = pd.DataFrame(data['prediction'].to_list(),index=data.index)
-        print('Data 42:\n')
+        
         data['residue'] = data['POWER_MANAGEMENT_SYSTEM/'+self._asset+'/'+self._asset+'LUBOILTEMPERATURE']-data['DERIVED_POWER_MANAGEMENT_SYSTEM/'+self._asset+'/'+self._asset+'LUBOILTEMPERATURE']
-        print('Data 43:\n')
-        data.to_csv('D:\SMAV\Backup\Testing_data_DG1.csv')
+        
         temp = data.set_index('time_stamp').groupby(['asset_no'])['residue'].rolling(window = self._rolling_window_size, min_periods=1).mean().reset_index()
-        print('Data 44:\n')
         data = data.drop(columns = ['residue']).merge(temp,on=['asset_no','time_stamp'])
-        print('Data 45:\n',data.shape)
         data = data.join(data['residue'].apply(self.check_condition))
-        print('Data 46:\n',data.shape)
         return data,['DERIVED_POWER_MANAGEMENT_SYSTEM/'+self._asset+'/'+self._asset+'LUBOILTEMPERATURE','DERIVED_'+self._asset+'_LUBRICATION_SYSTEM_FAILURE_WARNING','DERIVED_'+self._asset+'_LUBRICATION_SYSTEM_FAILURE']
     # Public function to invoke the trained model to predict
     def predict(self, data, target_label):
         if set(self._use_cols+['time_stamp','asset_no']).issubset(data.columns):
-            print('Data 1:\n',data.head())
             data = data.set_index(['asset_no','time_stamp'])
-            print('Data Shape:\n',data.shape)
             data = self.pre_process(data)
-            print('Data 2:\n',data.head())
             data = data.reset_index()
             predict_data = data[self._model_cols]
-            print('Data 3:\n',predict_data.head())
             if len(predict_data)!=0:
                 data['prediction']  = self._model.predict(predict_data)
-                print('Data 4:\n',data.head())
+
                 data,target_tags = self.post_processing(data,target_label)
-                print('Data 5:\n',data.head())
                 return data[['time_stamp','asset_no']+target_tags]
             else:
                 return pd.DataFrame()
