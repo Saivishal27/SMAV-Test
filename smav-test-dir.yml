@@ -7,15 +7,15 @@ spec:
   - name: kaniko
     image: gcr.io/kaniko-project/executor:latest
     args: 
-    - "--destination=kunchalavikram/kaniko-demo-image:latest"
+    - "--destination=saivishal182/smav-test-image:1.5"
     volumeMounts:
-      - name: app-files
+      - name: ml-files
         mountPath: /workspace
       - name: kaniko-secret
         mountPath: /kaniko/.docker
   restartPolicy: Never
   volumes:
-    - name: app-files
+    - name: ml-files
       hostPath:
         path:  /c/Users/vikram/OneDrive/Study/DevOps/Kubernetes/Templates/my_manifests/kaniko-demo # /home/ec2-user/kaniko-demo
         type: Directory
